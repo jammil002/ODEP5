@@ -23,14 +23,14 @@ class FileSystem:
     def saveFile(self, filename, filesize):
         print("Saving file:", filename, filesize)  # Temporary check
         if filesize > self.freeSpace:
-            print("Not enough space")
+            print("Not enough space to save the file.")
             return False
 
-        if not self._findContiguousSpace(filesize):
+        if not self._findContiguousSpace(filesize, filename):
+            print(f"Contiguous space not found for {filename}, attempting to fragment...")
             self._fragmentFile(filename, filesize)
 
         self.freeSpace -= filesize
-        print("New free space:", self.freeSpace)  # Check if this updates
         return True
 
     def deleteFile(self, filename):
@@ -50,20 +50,25 @@ class FileSystem:
 
         return loadTime
 
-    def _allocateFromSpace(self, index, space, file_size):
+    def _allocateFromSpace(self, index, space, file_size, filename):  # Include filename as a parameter
         start = space['start']
         newSpaceStart = start + file_size
-
         if file_size < space['size']:
             self.freeSpaces[index]['size'] -= file_size
             self.freeSpaces[index]['start'] = newSpaceStart
         else:
             del self.freeSpaces[index]
 
-    def _findContiguousSpace(self, fileSize):
+        # Update self.files with the new file information
+        self.files[filename] = {
+            'size': file_size,
+            'fragments': [{'start': start, 'size': file_size}]
+        }
+
+    def _findContiguousSpace(self, fileSize, filename):  # Include filename as a parameter
         for i, space in enumerate(self.freeSpaces):
             if space['size'] >= fileSize:
-                self._allocateFromSpace(i, space, fileSize)
+                self._allocateFromSpace(i, space, fileSize, filename)  # Pass filename here as well
                 return True
         return False
 
@@ -81,7 +86,11 @@ class FileSystem:
                 remainingSize -= space['size']
                 self.updateFreeSpaces(i, space, space['size'])
 
-        self.files[filename] = {'fragments': fragments}
+        # Update self.files with the new file information, including all fragments
+        self.files[filename] = {
+            'size': fileSize,
+            'fragments': fragments
+        }
 
     def updateFreeSpaces(self, index, space, usedSize):
         if usedSize < space['size']:
